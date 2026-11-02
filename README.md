@@ -31,7 +31,26 @@ The first start downloads the INT8 model (~700 MB) into the `parakeet-models` vo
 so the container stays `starting` for a few minutes. Watch progress with
 `docker compose logs -f`; the service is ready when `GET /health` returns `200`.
 
-Without Compose:
+### Prebuilt image (GHCR)
+
+CI publishes the smoke-tested image to GitHub Container Registry on every push to
+`main` (`latest`, `sha-<commit>`) and on `v*` tags (`1.2.3`, `sha-<commit>`; tags do
+not move `latest`). A manual run of the CI workflow on `main` republishes it. Pull
+requests and other branches only build and smoke-test it.
+
+```bash
+docker pull ghcr.io/seekeer/parakeet-tdt-0.6b-v3-fastapi-openai:latest
+docker run -d --name parakeet -p 5092:5092 \
+  -e PARAKEET_API_KEYS=<key> \
+  -v parakeet-models:/app/models \
+  ghcr.io/seekeer/parakeet-tdt-0.6b-v3-fastapi-openai:latest
+```
+
+A new GHCR package is private by default: either run
+`docker login ghcr.io` with a token that has `read:packages`, or make the package
+public in the package settings on GitHub.
+
+### Build locally without Compose
 
 ```bash
 docker build -t parakeet-tdt:cpu .
