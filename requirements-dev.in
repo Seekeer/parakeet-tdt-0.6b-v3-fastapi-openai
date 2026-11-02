@@ -3,3 +3,9 @@ pytest
 pytest-asyncio
 httpx
 requests
+# eval/wer_eval.py: ranged reads of remote parquet test sets (fsspec HTTP needs aiohttp).
+# pyarrow 26.0.0 fails to import with the service's numpy 1.26 ("pyarrow requires
+# NumPy 2.0 or newer"); 21.0.0 is the version validated with numpy 1.26.
+pyarrow<22
+fsspec
+aiohttp

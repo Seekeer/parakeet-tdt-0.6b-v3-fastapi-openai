@@ -190,6 +190,38 @@ PARAKEET_API_KEYS=dev-key-0123456789abcdef .venv/bin/python server.py
 .venv/bin/pytest -q
 ```
 
+### Accuracy check (Russian)
+
+`eval/wer_eval.py` scores a running service on fixed selections of Russian
+test-split recordings from six public corpora. Selections and reference
+transcripts live in `eval/sets/<set>/manifest.tsv`; audio (~30 MB) is downloaded
+into `eval/sets/<set>/audio/` and not committed. Requires `requirements-dev.txt`.
+Every source is pinned to a dataset commit; `fetch` refuses clips whose length or
+transcript differ from the manifest and re-downloads incomplete files.
+
+```bash
+python eval/wer_eval.py fetch                                    # all sets
+PARAKEET_API_KEY=<key> python eval/wer_eval.py run --url http://localhost:5092
+```
+
+It prints WER/CER per set (lowercased, `ё`→`е`, punctuation removed) and writes
+per-clip results to `eval/results/`. Baseline, INT8 model on CPU:
+
+| Set | Source (license) | Speech | Clips | Words | WER | CER |
+| --- | --- | --- | ---: | ---: | ---: | ---: |
+| `fleurs_ru` | Google FLEURS (CC BY 4.0) | read Wikipedia sentences | 40 | 838 | 7.0 % | 2.2 % |
+| `golos_crowd` | SberDevices Golos crowd (Golos license) | voice-assistant queries | 15 | 80 | 2.5 % | 0.5 % |
+| `golos_farfield` | SberDevices Golos farfield (Golos license) | far-field smart-speaker commands | 15 | 88 | 6.8 % | 2.0 % |
+| `sova_rudevices` | SOVA RuDevices (CC BY 4.0) | spontaneous, consumer devices | 15 | 130 | 14.6 % | 4.9 % |
+| `rulibrispeech` | Russian LibriSpeech (not stated) | audiobook poetry | 15 | 211 | 15.2 % | 3.3 % |
+| `podlodka` | Podlodka podcast (not stated) | conversational IT talk | 15 | 760 | 8.2 % | 4.7 % |
+| **all** | | | 115 | 2107 | **8.5 %** | |
+
+Small sets (under ~200 words) swing by several points per clip. Known error
+sources: digits in the reference vs numbers spoken out as words (and the
+reverse), dropped filler words (`ну`, `вот`, `там`) in verbatim podcast
+references, foreign names and English terms, archaic poetic vocabulary.
+
 ### Updating dependencies
 
 `requirements.txt` and `requirements-dev.txt` are fully pinned locks generated with
