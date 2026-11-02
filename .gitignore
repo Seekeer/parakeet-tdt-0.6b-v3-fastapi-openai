@@ -44,3 +44,7 @@ nohup.out
 logs/
 __pycache__/
 *.pyc
+
+# Evaluation audio and results (eval/wer_eval.py)
+eval/sets/*/audio/
+eval/results/
