@@ -1,0 +1,13 @@
+# Direct runtime dependencies. requirements.txt is the pinned lock generated
+# from this file; see README "Updating dependencies".
+onnx-asr[hub]==0.12.0
+# Version validated upstream with onnx-asr 0.12.0 (1.24.1 is known-broken).
+onnxruntime==1.23.2
+fastapi
+uvicorn[standard]
+python-multipart
+silero-vad
+# CPU-only torch wheel (pulled in by silero-vad) from the PyTorch CPU index.
+torch
+numpy<2
+psutil

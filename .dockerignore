@@ -32,10 +32,15 @@ benchmark_results/
 # Models (will be downloaded at runtime)
 models/
 
-# Test files
-test_*.py
+# Tests, tooling and docs
+tests/
+.github/
 benchmark.py
-inspect_model.py
+pin_pcores.sh
+requirements*.in
+requirements-dev.txt
+*.md
+.env.example
 
 # Docker
 Dockerfile*

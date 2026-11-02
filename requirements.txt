@@ -1,17 +1,146 @@
-onnx-asr[hub]==0.12.0
-fastapi>=0.115.0
-uvicorn[standard]>=0.30.0
-python-multipart>=0.0.9
-silero-vad>=6.0.0
-waitress>=3.0.0
-flask>=3.0.0
-openai>=1.0.0
-typing_extensions>=4.0.0
-psutil>=5.0.0
-requests>=2.0.0
-onnxruntime-gpu[cuda,cudnn]==1.23.2
-numpy<2
-tensorrt-cu12==10.9.0.34
+--index-url https://pypi.org/simple
+--extra-index-url https://download.pytorch.org/whl/cpu
 
-# CPU-only deployments replace onnxruntime-gpu with onnxruntime and run with:
-# PARAKEET_USE_GPU=false PARAKEET_DEFAULT_MODEL=parakeet-tdt-0.6b-v3 PARAKEET_BATCHED=0
+annotated-doc==0.0.5
+    # via fastapi
+annotated-types==0.8.0
+    # via pydantic
+anyio==4.16.0
+    # via
+    #   httpx2
+    #   starlette
+    #   watchfiles
+click==8.5.0
+    # via
+    #   huggingface-hub
+    #   uvicorn
+colorama==0.4.6 ; sys_platform == 'win32'
+    # via tqdm
+coloredlogs==15.0.1
+    # via onnxruntime
+fastapi==0.162.0
+    # via -r requirements.in
+filelock==4.2.6
+    # via
+    #   huggingface-hub
+    #   torch
+flatbuffers==25.12.19
+    # via onnxruntime
+fsspec==2026.9.0
+    # via
+    #   huggingface-hub
+    #   torch
+h11==0.16.0
+    # via
+    #   httpcore2
+    #   uvicorn
+hf-xet==1.8.0 ; platform_machine == 'AMD64' or platform_machine == 'ARM64' or platform_machine == 'aarch64' or platform_machine == 'amd64' or platform_machine == 'arm64' or platform_machine == 'x86_64'
+    # via huggingface-hub
+httpcore2==2.16.0 ; sys_platform != 'emscripten'
+    # via httpx2
+httptools==0.9.0
+    # via uvicorn
+httpx2==2.16.0
+    # via huggingface-hub
+httpx2-jsfetch==1.0 ; python_full_version >= '3.12' and sys_platform == 'emscripten'
+    # via httpx2
+huggingface-hub==2.4.0
+    # via onnx-asr
+humanfriendly==10.0
+    # via coloredlogs
+idna==3.20
+    # via
+    #   anyio
+    #   httpx2
+jinja2==3.1.6
+    # via torch
+markupsafe==3.0.4
+    # via jinja2
+mpmath==1.3.0
+    # via sympy
+networkx==3.6.1 ; python_full_version < '3.12'
+    # via torch
+networkx==3.7 ; python_full_version >= '3.12'
+    # via torch
+numpy==1.26.4
+    # via
+    #   -r requirements.in
+    #   onnx-asr
+    #   onnxruntime
+onnx-asr==0.12.0
+    # via -r requirements.in
+onnxruntime==1.23.2
+    # via -r requirements.in
+opentelemetry-api==1.45.2
+    # via fastapi
+packaging==26.3
+    # via
+    #   huggingface-hub
+    #   onnxruntime
+    #   silero-vad
+protobuf==7.36.2
+    # via onnxruntime
+psutil==7.2.2
+    # via -r requirements.in
+pydantic==2.14.2
+    # via fastapi
+pydantic-core==2.50.2
+    # via pydantic
+pyreadline3==3.5.6 ; sys_platform == 'win32'
+    # via humanfriendly
+python-dotenv==1.2.4
+    # via uvicorn
+python-multipart==0.0.33
+    # via -r requirements.in
+pyyaml==6.0.3
+    # via
+    #   huggingface-hub
+    #   uvicorn
+setuptools==84.2.1
+    # via torch
+silero-vad==6.2.3
+    # via -r requirements.in
+starlette==1.10.0
+    # via fastapi
+sympy==1.14.0
+    # via
+    #   onnxruntime
+    #   torch
+torch==2.15.0 ; sys_platform == 'darwin'
+    # via
+    #   -r requirements.in
+    #   silero-vad
+torch==2.15.0+cpu ; sys_platform != 'darwin'
+    # via
+    #   -r requirements.in
+    #   silero-vad
+tqdm==4.70.1
+    # via huggingface-hub
+truststore==0.10.5 ; sys_platform != 'emscripten'
+    # via
+    #   httpcore2
+    #   httpx2
+typing-extensions==4.16.0
+    # via
+    #   anyio
+    #   fastapi
+    #   httpx2
+    #   huggingface-hub
+    #   opentelemetry-api
+    #   pydantic
+    #   pydantic-core
+    #   starlette
+    #   torch
+    #   typing-inspection
+typing-inspection==0.4.4
+    # via
+    #   fastapi
+    #   pydantic
+uvicorn==0.54.0
+    # via -r requirements.in
+uvloop==0.23.0 ; platform_python_implementation != 'PyPy' and sys_platform != 'cygwin' and sys_platform != 'win32'
+    # via uvicorn
+watchfiles==1.3.0
+    # via uvicorn
+websockets==17.4
+    # via uvicorn

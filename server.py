@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-"""Entry point for the optimized Parakeet v3 server.
+"""Entry point for the Parakeet v3 CPU server.
 
 Run with::
 
-    python server.py                 # uvicorn defaults
-    PARAKEET_USE_GPU=true python server.py
-    PARAKEET_PORT=5093 python server.py
+    PARAKEET_API_KEYS=<key> python server.py
+    PARAKEET_API_KEYS=<key> PARAKEET_PORT=5093 python server.py
 
 Or directly with uvicorn::
 
