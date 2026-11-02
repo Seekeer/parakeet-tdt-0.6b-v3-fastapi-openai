@@ -8,10 +8,11 @@ import time
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse, PlainTextResponse, Response
 
 from .audio import load_audio
+from .auth import require_api_key
 from .chunker import auto_chunk, slice_chunks
 from .config import (
     CPU_INFO,
@@ -28,7 +29,9 @@ from .config import (
 )
 from .model import loaded_models, runtime_status
 
-router = APIRouter()
+# Health stays public for container probes; everything else needs an API key.
+public_router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_api_key)])
 _ALLOWED_FORMATS = {"json", "text", "srt", "vtt", "verbose_json"}
 
 
@@ -247,25 +250,21 @@ async def _infer_prepared(request: Request, prepared: _PreparedAudio, model_name
     return await worker.submit_many(prepared.pieces, model_name)
 
 
-@router.get("/health")
+@public_router.get("/health")
 def health(request: Request):
     ready = bool(getattr(request.app.state, "ready", False))
-    return {
-        "status": "healthy" if ready else "starting",
-        "ready": ready,
-        "models": list(MODEL_CONFIGS.keys()),
-        "loaded": loaded_models(),
-        "default_model": DEFAULT_MODEL,
-        "runtime": runtime_status(),
-        "cpu": CPU_INFO,
-    }
-
-
-@router.get("/healthz")
-def healthz(request: Request):
-    if not getattr(request.app.state, "ready", False):
-        raise HTTPException(status_code=503, detail="not ready")
-    return {"status": "ok"}
+    return JSONResponse(
+        {
+            "status": "healthy" if ready else "starting",
+            "ready": ready,
+            "models": list(MODEL_CONFIGS.keys()),
+            "loaded": loaded_models(),
+            "default_model": DEFAULT_MODEL,
+            "runtime": runtime_status(),
+            "cpu": CPU_INFO,
+        },
+        status_code=200 if ready else 503,
+    )
 
 
 @router.post("/v1/audio/transcriptions")

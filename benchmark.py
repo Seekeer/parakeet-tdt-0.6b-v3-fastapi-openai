@@ -17,6 +17,7 @@ from datetime import datetime
 
 # Configuration
 API_URL = "http://127.0.0.1:5092/v1/audio/transcriptions"
+API_KEY = os.environ.get("PARAKEET_API_KEY", "")
 TEST_AUDIO_DIR = "/home/op/mp3"
 OUTPUT_DIR = "./benchmark_results"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -48,7 +49,7 @@ def get_file_size_mb(file_path: str) -> float:
 
 
 def transcribe_audio(
-    file_path: str, model: str = "whisper-1", format: str = "text"
+    file_path: str, model: str = "parakeet-tdt-0.6b-v3", format: str = "text"
 ) -> dict:
     """Transcribe audio file and return results with timing"""
     start_time = time.time()
@@ -57,7 +58,12 @@ def transcribe_audio(
         files = {"file": audio_file}
         data = {"model": model, "response_format": format}
 
-        response = requests.post(API_URL, files=files, data=data)
+        response = requests.post(
+            API_URL,
+            files=files,
+            data=data,
+            headers={"Authorization": f"Bearer {API_KEY}"},
+        )
 
     end_time = time.time()
     processing_time = end_time - start_time
@@ -95,7 +101,7 @@ def find_service_pid() -> int:
     for proc in psutil.process_iter(["pid", "name", "cmdline"]):
         try:
             cmdline = proc.info["cmdline"]
-            if cmdline and "app.py" in " ".join(cmdline):
+            if cmdline and "server.py" in " ".join(cmdline):
                 return proc.info["pid"]
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             continue
@@ -140,7 +146,7 @@ def run_benchmark(audio_files: list, num_runs: int = 3):
             baseline_stats = get_process_stats(service_pid) if service_pid != -1 else {}
 
             # Transcribe
-            result = transcribe_audio(audio_file, model="whisper-1", format="text")
+            result = transcribe_audio(audio_file, format="text")
 
             # Get stats after transcription
             post_stats = get_process_stats(service_pid) if service_pid != -1 else {}

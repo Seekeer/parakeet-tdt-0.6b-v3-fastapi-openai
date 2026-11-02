@@ -5,11 +5,12 @@ large model is downloaded or loaded into memory.
 """
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
 import sys
 from pathlib import Path
-from typing import Iterable
+from typing import Tuple
 
 
 # Set numeric-library limits before importing NumPy/ONNX Runtime in other modules.
@@ -57,14 +58,36 @@ def _env_bool(name: str, default: bool) -> bool:
     raise RuntimeError(f"{name} must be a boolean, got {raw!r}")
 
 
-def _env_choice(name: str, default: str, choices: Iterable[str]) -> str:
-    allowed = {choice.lower() for choice in choices}
-    value = os.getenv(name, default).strip().lower()
-    if value not in allowed:
+MIN_API_KEY_LENGTH = 16
+
+
+def _load_api_key_digests() -> Tuple[bytes, ...]:
+    """Collect API keys from PARAKEET_API_KEYS and PARAKEET_API_KEYS_FILE.
+
+    Only SHA-256 digests are kept so comparisons are length-independent.
+    """
+    keys = [key.strip() for key in os.getenv("PARAKEET_API_KEYS", "").split(",")]
+    keys_file = os.getenv("PARAKEET_API_KEYS_FILE", "").strip()
+    if keys_file:
+        try:
+            # utf-8-sig drops the BOM that Windows editors may prepend.
+            lines = Path(keys_file).expanduser().read_text(encoding="utf-8-sig").splitlines()
+        except OSError as exc:
+            raise RuntimeError(
+                f"PARAKEET_API_KEYS_FILE could not be read: {keys_file!r}"
+            ) from exc
+        keys.extend(line.strip() for line in lines if not line.lstrip().startswith("#"))
+
+    keys = [key for key in keys if key]
+    short = [key for key in keys if len(key) < MIN_API_KEY_LENGTH]
+    if short:
         raise RuntimeError(
-            f"{name} must be one of {sorted(allowed)}, got {value!r}"
+            f"{len(short)} API key(s) are shorter than {MIN_API_KEY_LENGTH} characters"
         )
-    return value
+    # HTTP headers arrive as latin-1, so a non-ASCII key could never match.
+    if not all(key.isascii() and key.isprintable() for key in keys):
+        raise RuntimeError("API keys must contain printable ASCII characters only")
+    return tuple(sorted({hashlib.sha256(key.encode("utf-8")).digest() for key in keys}))
 
 
 # ---------------------------------------------------------------------------
@@ -82,33 +105,20 @@ MODEL_CONFIGS = {
     "parakeet-tdt-0.6b-v3": {
         "hf_id": "nemo-parakeet-tdt-0.6b-v3",
         "quantization": "int8",
-        "description": "INT8 CPU profile",
+        "description": "INT8 CPU profile (fastest)",
     },
     "istupakov/parakeet-tdt-0.6b-v3-onnx": {
         "hf_id": "istupakov/parakeet-tdt-0.6b-v3-onnx",
         "quantization": None,
-        "description": "FP32 GPU profile",
+        "description": "FP32 CPU profile",
     },
     "grikdotnet/parakeet-tdt-0.6b-fp16": {
         "hf_id": "grikdotnet/parakeet-tdt-0.6b-fp16",
         "quantization": "fp16",
-        "description": "FP16 GPU profile",
+        "description": "FP16 CPU profile",
     },
 }
-# TensorRT compiles the FP32 ONNX encoder to mixed FP16; decoder stays FP32.
-GPU_DEFAULT_MODEL = "istupakov/parakeet-tdt-0.6b-v3-onnx"
-CPU_DEFAULT_MODEL = "parakeet-tdt-0.6b-v3"
-
-USE_GPU = _env_choice("PARAKEET_USE_GPU", "true", {"auto", "true", "false"})
-GPU_BACKEND = _env_choice("PARAKEET_GPU_BACKEND", "tensorrt", {"tensorrt", "cuda"})
-TRT_ENABLED = USE_GPU != "false" and GPU_BACKEND == "tensorrt"
-TRT_CACHE_DIR = Path(os.getenv("PARAKEET_TRT_CACHE_DIR", MODELS_DIR / "tensorrt")).expanduser()
-TRT_WORKSPACE_MB = _env_int("PARAKEET_TRT_WORKSPACE_MB", 256)
-# Fixed batch-1 profile: 80 ms minimum, 8 s optimal, 16 s maximum. Keep a
-# one-second margin for the preprocessor's extra frame at waveform boundaries.
-TRT_MAX_FRAMES = 1600
-_default_model_fallback = CPU_DEFAULT_MODEL if USE_GPU == "false" else GPU_DEFAULT_MODEL
-DEFAULT_MODEL = os.getenv("PARAKEET_DEFAULT_MODEL", _default_model_fallback).strip().lower()
+DEFAULT_MODEL = os.getenv("PARAKEET_DEFAULT_MODEL", "parakeet-tdt-0.6b-v3").strip().lower()
 if DEFAULT_MODEL not in MODEL_CONFIGS:
     raise RuntimeError(
         "PARAKEET_DEFAULT_MODEL must be one of "
@@ -121,11 +131,9 @@ if DEFAULT_MODEL not in MODEL_CONFIGS:
 # ---------------------------------------------------------------------------
 TARGET_SR = 16_000
 
-CHUNK_TARGET_SEC = _env_float("PARAKEET_CHUNK_TARGET_SEC", 12.0 if TRT_ENABLED else 60.0, minimum=0.1)
-CHUNK_MAX_SEC = _env_float("PARAKEET_CHUNK_MAX_SEC", 15.0 if TRT_ENABLED else 75.0, minimum=0.1)
-CHUNK_MIN_SEC = _env_float("PARAKEET_CHUNK_MIN_SEC", 5.0 if TRT_ENABLED else 20.0, minimum=0.0)
-if TRT_ENABLED and CHUNK_MAX_SEC > 15.0:
-    raise RuntimeError("TensorRT requires PARAKEET_CHUNK_MAX_SEC <= 15; use PARAKEET_GPU_BACKEND=cuda for larger chunks")
+CHUNK_TARGET_SEC = _env_float("PARAKEET_CHUNK_TARGET_SEC", 60.0, minimum=0.1)
+CHUNK_MAX_SEC = _env_float("PARAKEET_CHUNK_MAX_SEC", 75.0, minimum=0.1)
+CHUNK_MIN_SEC = _env_float("PARAKEET_CHUNK_MIN_SEC", 20.0, minimum=0.0)
 if not CHUNK_MIN_SEC <= CHUNK_TARGET_SEC <= CHUNK_MAX_SEC:
     raise RuntimeError(
         "chunk durations must satisfy PARAKEET_CHUNK_MIN_SEC <= "
@@ -138,26 +146,7 @@ if VAD_THRESHOLD > 1.0:
 VAD_MIN_SILENCE_MS = _env_int("PARAKEET_VAD_MIN_SILENCE_MS", 400, minimum=1)
 VAD_SPEECH_PAD_MS = _env_int("PARAKEET_VAD_SPEECH_PAD_MS", 120, minimum=0)
 
-GPU_DEVICE_ID = _env_int("PARAKEET_GPU_DEVICE_ID", 0, minimum=0)
-GPU_MEMORY_LIMIT_MB = _env_int("PARAKEET_GPU_MEMORY_LIMIT_MB", 0, minimum=0)
-GPU_CUDNN_ALGO_SEARCH = _env_choice(
-    "PARAKEET_GPU_CUDNN_ALGO_SEARCH",
-    "heuristic",
-    {"default", "heuristic", "exhaustive"},
-)
-GPU_CUDNN_MAX_WORKSPACE = _env_bool("PARAKEET_GPU_CUDNN_MAX_WORKSPACE", False)
-GPU_ARENA_EXTEND_STRATEGY = _env_choice(
-    "PARAKEET_GPU_ARENA_EXTEND_STRATEGY",
-    "same_as_requested",
-    {"next_power_of_two", "same_as_requested"},
-)
-BATCHED = _env_bool("PARAKEET_BATCHED", USE_GPU != "false" and not TRT_ENABLED)
-MAX_BATCH_SIZE = _env_int("PARAKEET_MAX_BATCH_SIZE", 4)
-MAX_BATCH_AUDIO_SECONDS = _env_float(
-    "PARAKEET_MAX_BATCH_AUDIO_SECONDS", 90.0, minimum=0.1
-)
-BATCH_WINDOW_MS = _env_float("PARAKEET_BATCH_WINDOW_MS", 4.0, minimum=0.0)
-INFER_WORKERS = _env_int("PARAKEET_INFER_WORKERS", 1 if TRT_ENABLED else 4)
+INFER_WORKERS = _env_int("PARAKEET_INFER_WORKERS", 4)
 
 MAX_UPLOAD_BYTES = _env_int(
     "PARAKEET_MAX_UPLOAD_BYTES", 256 * 1024 * 1024, minimum=1
@@ -167,9 +156,21 @@ MAX_BATCH_BYTES = _env_int(
     "PARAKEET_MAX_BATCH_BYTES", 512 * 1024 * 1024, minimum=1
 )
 MAX_AUDIO_SECONDS = _env_float("PARAKEET_MAX_AUDIO_SECONDS", 2 * 60 * 60, minimum=1.0)
-MAX_REQUEST_CHUNKS = _env_int("PARAKEET_MAX_REQUEST_CHUNKS", 1024 if TRT_ENABLED else 512)
+MAX_REQUEST_CHUNKS = _env_int("PARAKEET_MAX_REQUEST_CHUNKS", 512)
 FFMPEG_TIMEOUT_SEC = _env_float("PARAKEET_FFMPEG_TIMEOUT_SEC", 180.0, minimum=1.0)
 UPLOAD_READ_CHUNK_BYTES = min(1024 * 1024, MAX_UPLOAD_BYTES)
+
+
+# ---------------------------------------------------------------------------
+# Authentication
+# ---------------------------------------------------------------------------
+AUTH_DISABLED = _env_bool("PARAKEET_AUTH_DISABLED", False)
+API_KEY_DIGESTS = _load_api_key_digests()
+if not AUTH_DISABLED and not API_KEY_DIGESTS:
+    raise RuntimeError(
+        "No API keys configured: set PARAKEET_API_KEYS or PARAKEET_API_KEYS_FILE, "
+        "or PARAKEET_AUTH_DISABLED=true to run without authentication"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -187,8 +188,9 @@ try:
 except Exception:
     _physical = _available_logical
 
-DEFAULT_INTRA = 1 if USE_GPU != "false" else min(_physical, _available_logical)
-ORT_INTRA_THREADS = _env_int("PARAKEET_ORT_INTRA_THREADS", DEFAULT_INTRA)
+ORT_INTRA_THREADS = _env_int(
+    "PARAKEET_ORT_INTRA_THREADS", min(_physical, _available_logical)
+)
 ORT_INTER_THREADS = _env_int("PARAKEET_ORT_INTER_THREADS", 1)
 AUDIO_WORKERS = _env_int("PARAKEET_AUDIO_WORKERS", min(8, _physical))
 
